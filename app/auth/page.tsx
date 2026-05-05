@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { TrendingUp, Chrome } from 'lucide-react'
+import { TrendingUp, Globe } from 'lucide-react'
 import Link from 'next/link'
 
 type Mode = 'login' | 'register'
@@ -111,7 +111,7 @@ export default function AuthPage() {
               onClick={handleGoogleLogin}
               type="button"
             >
-              <Chrome className="h-4 w-4 mr-2" />
+              <Globe className="h-4 w-4 mr-2" />
               Continuar com Google
             </Button>
 
