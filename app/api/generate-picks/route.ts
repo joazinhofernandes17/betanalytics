@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import Groq from 'groq-sdk'
 import { createAdminClient } from '@/lib/supabase/server'
 import type { AIPickResponse } from '@/types'
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY!,
 })
 
-// POST /api/generate-picks — Gera as 3 apostas do dia com Claude AI
+// POST /api/generate-picks — Gera as 3 apostas do dia com Groq (llama-3.3-70b-versatile)
 // Protegido por chave secreta (CRON_SECRET ou header de admin)
 export async function POST(request: NextRequest) {
   // Verificar autorização
@@ -43,15 +43,19 @@ export async function POST(request: NextRequest) {
   })
 
   try {
-    // Chamada ao Claude para gerar as apostas
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+    // Chamada ao Groq para gerar as apostas
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
       max_tokens: 2048,
-      system: `És um analista profissional de apostas desportivas de futebol com 20 anos de experiência.
+      temperature: 0.7,
+      messages: [
+        {
+          role: 'system',
+          content: `És um analista profissional de apostas desportivas de futebol com 20 anos de experiência.
 Analisas estatísticas avançadas, forma recente, confrontos diretos, lesões, motivação das equipas e valor das odds.
 O teu objetivo é identificar 3 apostas de alto valor com probabilidade de acerto superior a 75%.
 Responde sempre em JSON válido, sem markdown, sem texto adicional.`,
-      messages: [
+        },
         {
           role: 'user',
           content: `Gera 3 apostas de futebol para hoje ${dateFormatted}.
@@ -68,13 +72,13 @@ Formato de resposta: array JSON de exatamente 3 objetos. Nenhum texto adicional.
       ],
     })
 
-    const content = response.content[0]
-    if (content.type !== 'text') {
+    const content = response.choices[0]?.message?.content
+    if (!content) {
       throw new Error('Resposta inesperada da IA')
     }
 
     // Limpar possível markdown no JSON
-    const jsonText = content.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    const jsonText = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     const picks: AIPickResponse[] = JSON.parse(jsonText)
 
     if (!Array.isArray(picks) || picks.length !== 3) {
