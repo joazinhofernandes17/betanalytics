@@ -31,11 +31,11 @@ export async function GET(request: NextRequest) {
     .eq('user_id', user.id)
     .in('pick_id', (picks ?? []).map(p => p.id))
 
-  const savedPickIds = new Set((savedBets ?? []).map(b => b.pick_id))
+  const savedPickIds = (savedBets ?? []).map(b => b.pick_id)
 
   return NextResponse.json({
     picks: picks ?? [],
-    savedPickIds: [...savedPickIds],
+    savedPickIds,
     date,
   })
 }

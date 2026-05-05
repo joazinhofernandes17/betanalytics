@@ -15,7 +15,7 @@ export default function ApostasPage() {
   const dateParam = searchParams.get('data') || todayISO()
 
   const [picks, setPicks] = useState<DailyPick[]>([])
-  const [savedPickIds, setSavedPickIds] = useState<Set<string>>(new Set())
+  const [savedPickIds, setSavedPickIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchPicks = useCallback(async () => {
@@ -25,7 +25,7 @@ export default function ApostasPage() {
       if (!res.ok) throw new Error('Erro ao carregar apostas')
       const data = await res.json()
       setPicks(data.picks)
-      setSavedPickIds(new Set(data.savedPickIds))
+      setSavedPickIds(data.savedPickIds)
     } catch {
       toast.error('Erro ao carregar apostas')
     } finally {
@@ -51,7 +51,7 @@ export default function ApostasPage() {
       }
       if (!res.ok) throw new Error()
 
-      setSavedPickIds(prev => new Set([...prev, pickId]))
+      setSavedPickIds(prev => [...prev, pickId])
       toast.success('Aposta guardada no histórico!')
     } catch {
       toast.error('Erro ao guardar aposta')
@@ -91,7 +91,7 @@ export default function ApostasPage() {
             <PickCard
               key={pick.id}
               pick={pick}
-              isSaved={savedPickIds.has(pick.id)}
+              isSaved={savedPickIds.includes(pick.id)}
               onSave={handleSave}
               showSaveButton={true}
             />
