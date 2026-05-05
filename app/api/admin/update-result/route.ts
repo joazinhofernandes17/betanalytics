@@ -37,7 +37,7 @@ export async function PATCH(request: NextRequest) {
     .eq('pick_id', pickId)
 
   if (userBets && userBets.length > 0) {
-    const userIds = [...new Set(userBets.map(b => b.user_id))]
+    const userIds = Array.from(new Set(userBets.map(b => b.user_id)))
     for (const userId of userIds) {
       await supabase.rpc('update_tipster_stats', { p_user_id: userId })
     }
