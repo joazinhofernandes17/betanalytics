@@ -103,9 +103,15 @@ export default function ApostasPage() {
       {!loading && picks.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <CalendarX className="h-12 w-12 text-zinc-600 mb-4" />
-          <h3 className="text-lg font-semibold text-zinc-400">Sem apostas para esta data</h3>
+          <h3 className="text-lg font-semibold text-zinc-400">
+            {dateParam === todayISO()
+              ? 'Hoje não há jogos relevantes'
+              : 'Sem apostas para esta data'}
+          </h3>
           <p className="text-sm text-zinc-500 mt-2">
-            As apostas são geradas automaticamente às 08:00 todos os dias.
+            {dateParam === todayISO()
+              ? 'Não foram encontrados jogos nas principais competições europeias para hoje. As apostas só são geradas com dados reais da Odds API.'
+              : 'As apostas são geradas automaticamente às 08:00 com jogos reais das competições europeias.'}
           </p>
         </div>
       )}

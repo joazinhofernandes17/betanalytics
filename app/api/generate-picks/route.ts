@@ -14,6 +14,9 @@ export async function POST(request: NextRequest) {
   if ('alreadyExists' in result) {
     return NextResponse.json({ message: 'Picks já gerados para hoje', date: result.date })
   }
+  if ('noGames' in result) {
+    return NextResponse.json({ message: 'Hoje não há jogos nas principais competições europeias. Sem picks gerados.', date: result.date })
+  }
   if ('error' in result) {
     return NextResponse.json({ error: result.error, details: result.details }, { status: 500 })
   }
