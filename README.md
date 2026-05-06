@@ -61,10 +61,24 @@ Abre [http://localhost:3000](http://localhost:3000).
 | `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave pública do Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | Chave service role (acesso admin sem RLS) |
-| `ANTHROPIC_API_KEY` | API key da Anthropic |
+| `GROQ_API_KEY` | API key da Groq (modelo llama-3.3-70b-versatile) |
+| `ODDS_API_KEY` | API key da The Odds API — **opcional** (ver abaixo) |
 | `CRON_SECRET` | Segredo para proteger endpoints de cron/admin |
 | `NEXT_PUBLIC_APP_URL` | URL da aplicação (sem trailing slash) |
 | `ADMIN_EMAILS` | Emails de admin separados por vírgula |
+
+### The Odds API (opcional mas recomendado)
+
+A integração com [the-odds-api.com](https://the-odds-api.com) permite que a IA analise **jogos reais de hoje** com odds reais dos bookmakers europeus, em vez de gerar jogos fictícios.
+
+**Como obter a chave gratuita:**
+1. Regista-te em [the-odds-api.com](https://the-odds-api.com)
+2. O plano gratuito dá **500 requests/mês** (suficiente para uso diário)
+3. Copia a API key para `ODDS_API_KEY` no `.env.local` e nas variáveis da Vercel
+
+**Comportamento com/sem a chave:**
+- ✅ **Com `ODDS_API_KEY`**: busca jogos reais de hoje → IA analisa odds reais → picks de valor real
+- ⚠️ **Sem `ODDS_API_KEY`** (fallback): IA gera picks com base no seu conhecimento geral de futebol
 
 ---
 
