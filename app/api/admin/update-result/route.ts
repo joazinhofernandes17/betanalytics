@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import type { PickResult } from '@/types'
 
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim())
+
+async function requireAdmin() {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  if (ADMIN_EMAILS.length > 0 && !ADMIN_EMAILS.includes(user.email || '')) return null
+  return user
+}
+
 // PATCH /api/admin/update-result — Atualiza resultado de uma aposta
-// Apenas admin (verificado via service role key)
 export async function PATCH(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const user = await requireAdmin()
+  if (!user) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 

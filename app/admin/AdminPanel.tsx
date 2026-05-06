@@ -26,17 +26,11 @@ export function AdminPanel({ todayPicks: initialPicks, stats }: AdminPanelProps)
   const [generating, setGenerating] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
-  const cronSecret = process.env.NEXT_PUBLIC_CRON_SECRET
-
   async function handleGeneratePicks() {
     setGenerating(true)
     try {
-      const res = await fetch('/api/generate-picks', {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${cronSecret}`,
-        },
-      })
+      // Usa rota admin que valida sessão no servidor (sem expor CRON_SECRET)
+      const res = await fetch('/api/admin/generate-picks', { method: 'POST' })
       const data = await res.json()
 
       if (res.ok) {
@@ -59,12 +53,10 @@ export function AdminPanel({ todayPicks: initialPicks, stats }: AdminPanelProps)
   async function handleUpdateResult(pickId: string, result: PickResult) {
     setUpdatingId(pickId)
     try {
+      // Usa sessão Supabase para autenticar (sem CRON_SECRET no cliente)
       const res = await fetch('/api/admin/update-result', {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${cronSecret}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pickId, result }),
       })
 
