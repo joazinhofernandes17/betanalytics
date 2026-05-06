@@ -1,5 +1,6 @@
 // Integração com The Odds API (https://the-odds-api.com)
 // Plano gratuito: 500 requests/mês
+// Cada chamada a fetchTodayMatches() usa até SPORT_KEYS.length requests
 
 export interface MatchOdds {
   homeTeam: string
@@ -32,20 +33,35 @@ interface OddsAPIEvent {
   bookmakers: OddsAPIBookmaker[]
 }
 
-// Retorna o início e fim do dia de hoje no fuso horário de Lisboa em UTC
+// Competições a monitorizar
+const SPORT_KEYS = [
+  'soccer_uefa_champs_league',
+  'soccer_uefa_europa_league',
+  'soccer_uefa_euro_qualification',
+  'soccer_portugal_primeira_liga',
+  'soccer_spain_la_liga',
+  'soccer_england_premier_league',
+  'soccer_england_league1',
+  'soccer_england_league2',
+  'soccer_france_ligue_one',
+  'soccer_germany_bundesliga',
+  'soccer_italy_serie_a',
+  'soccer_netherlands_eredivisie',
+  'soccer_turkey_super_league',
+  'soccer_fifa_world_cup',
+]
+
+// Retorna o início e fim do dia de hoje no fuso horário de Lisboa convertido para UTC
 function getTodayRangeUTC(): { from: string; to: string; lisboaDate: string } {
-  // Data de hoje em Lisboa (YYYY-MM-DD)
   const lisboaDate = new Date().toLocaleDateString('en-CA', {
     timeZone: 'Europe/Lisbon',
   })
 
-  // Início do dia Lisboa em UTC (meia-noite Lisboa → UTC)
+  // Midnight Lisboa → UTC (compensar offset do servidor)
   const from = new Date(`${lisboaDate}T00:00:00`)
-  // Corrigir para UTC subtraindo o offset de Lisboa (UTC+1 inverno, UTC+2 verão)
-  const offset = from.getTimezoneOffset() // minutos de diferença UTC−local
+  const offset = from.getTimezoneOffset()
   const fromUTC = new Date(from.getTime() - offset * 60000)
 
-  // Fim do dia Lisboa em UTC (23:59:59 Lisboa → UTC)
   const to = new Date(`${lisboaDate}T23:59:59`)
   const toUTC = new Date(to.getTime() - offset * 60000)
 
@@ -56,15 +72,14 @@ function getTodayRangeUTC(): { from: string; to: string; lisboaDate: string } {
   }
 }
 
-// Verifica se um commence_time (UTC ISO string) cai no dia de hoje em Lisboa
+// Verifica se um commence_time (UTC) cai no dia de hoje em Lisboa
 function isMatchToday(commenceTime: string, lisboaDate: string): boolean {
-  const matchDateLisboa = new Date(commenceTime).toLocaleDateString('en-CA', {
+  return new Date(commenceTime).toLocaleDateString('en-CA', {
     timeZone: 'Europe/Lisbon',
-  })
-  return matchDateLisboa === lisboaDate
+  }) === lisboaDate
 }
 
-// Extrai as odds médias de h2h entre todos os bookmakers disponíveis
+// Extrai odds médias de h2h entre todos os bookmakers disponíveis
 function extractOdds(event: OddsAPIEvent): MatchOdds['odds'] | null {
   const h2hMarkets = event.bookmakers
     .map(b => b.markets.find(m => m.key === 'h2h'))
@@ -72,7 +87,6 @@ function extractOdds(event: OddsAPIEvent): MatchOdds['odds'] | null {
 
   if (h2hMarkets.length === 0) return null
 
-  // Calcular média das odds por outcome
   const accumulate: Record<string, number[]> = {}
   for (const market of h2hMarkets) {
     for (const outcome of market.outcomes) {
@@ -86,8 +100,6 @@ function extractOdds(event: OddsAPIEvent): MatchOdds['odds'] | null {
 
   const homeOdds = accumulate[event.home_team] ? avg(accumulate[event.home_team]) : null
   const awayOdds = accumulate[event.away_team] ? avg(accumulate[event.away_team]) : null
-
-  // Draw pode não existir em algumas ligas (ex: eliminatórias)
   const drawKey = Object.keys(accumulate).find(
     k => k !== event.home_team && k !== event.away_team
   )
@@ -98,16 +110,16 @@ function extractOdds(event: OddsAPIEvent): MatchOdds['odds'] | null {
   return { home: homeOdds, draw: drawOdds, away: awayOdds }
 }
 
-// Busca jogos de futebol de hoje (fuso horário Lisboa) com odds reais
-export async function fetchTodayMatches(): Promise<MatchOdds[]> {
-  const apiKey = process.env.ODDS_API_KEY
-  if (!apiKey) return []
-
-  const { from, to, lisboaDate } = getTodayRangeUTC()
-
+// Busca jogos de uma liga específica
+async function fetchLeagueMatches(
+  sportKey: string,
+  apiKey: string,
+  from: string,
+  to: string,
+  lisboaDate: string
+): Promise<MatchOdds[]> {
   try {
-    // Usar commenceTimeFrom/To para receber apenas jogos de hoje e poupar requests
-    const url = new URL('https://api.the-odds-api.com/v4/sports/soccer/odds/')
+    const url = new URL(`https://api.the-odds-api.com/v4/sports/${sportKey}/odds/`)
     url.searchParams.set('apiKey', apiKey)
     url.searchParams.set('regions', 'eu')
     url.searchParams.set('markets', 'h2h')
@@ -116,28 +128,23 @@ export async function fetchTodayMatches(): Promise<MatchOdds[]> {
     url.searchParams.set('commenceTimeFrom', from)
     url.searchParams.set('commenceTimeTo', to)
 
-    const res = await fetch(url.toString(), { cache: 'no-store' }) // sem cache para dados frescos
+    const res = await fetch(url.toString(), { cache: 'no-store' })
+
+    // 404 significa que a liga não tem jogos agendados — não é erro
+    if (res.status === 404) return []
 
     if (!res.ok) {
-      const body = await res.text()
-      console.error(`Odds API erro ${res.status}:`, body)
+      console.error(`Odds API [${sportKey}] erro ${res.status}`)
       return []
     }
 
     const events: OddsAPIEvent[] = await res.json()
 
-    console.log(`Odds API: ${events.length} jogos recebidos para Lisboa ${lisboaDate}`)
-
-    // Filtro secundário por data Lisboa (garante consistência mesmo se a API devolver extras)
-    const todayMatches = events.filter(e => isMatchToday(e.commence_time, lisboaDate))
-
-    console.log(`Odds API: ${todayMatches.length} jogos após filtro de data Lisboa`)
-
-    return todayMatches
+    return events
+      .filter(e => isMatchToday(e.commence_time, lisboaDate))
       .map(event => {
         const odds = extractOdds(event)
         if (!odds) return null
-
         return {
           homeTeam: event.home_team,
           awayTeam: event.away_team,
@@ -148,9 +155,44 @@ export async function fetchTodayMatches(): Promise<MatchOdds[]> {
       })
       .filter((m): m is MatchOdds => m !== null)
   } catch (err) {
-    console.error('Erro ao buscar odds:', err)
+    console.error(`Odds API [${sportKey}] falhou:`, err)
     return []
   }
+}
+
+// Busca jogos de hoje em todas as ligas configuradas (em paralelo)
+export async function fetchTodayMatches(): Promise<MatchOdds[]> {
+  const apiKey = process.env.ODDS_API_KEY
+  if (!apiKey) return []
+
+  const { from, to, lisboaDate } = getTodayRangeUTC()
+
+  // Fetch paralelo a todas as ligas para minimizar latência
+  const results = await Promise.all(
+    SPORT_KEYS.map(key => fetchLeagueMatches(key, apiKey, from, to, lisboaDate))
+  )
+
+  // Combinar e deduplicar por id implícito (home+away+commence_time)
+  const seen = new Set<string>()
+  const allMatches: MatchOdds[] = []
+
+  for (const leagueMatches of results) {
+    for (const match of leagueMatches) {
+      const key = `${match.homeTeam}|${match.awayTeam}|${match.commenceTime}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        allMatches.push(match)
+      }
+    }
+  }
+
+  // Ordenar por hora de início
+  allMatches.sort((a, b) =>
+    new Date(a.commenceTime).getTime() - new Date(b.commenceTime).getTime()
+  )
+
+  console.log(`Odds API: ${allMatches.length} jogo(s) encontrado(s) para Lisboa ${lisboaDate}`)
+  return allMatches
 }
 
 // Formata os jogos para incluir no prompt da IA
@@ -163,8 +205,7 @@ export function formatMatchesForPrompt(matches: MatchOdds[]): string {
         timeZone: 'Europe/Lisbon',
       })
       const drawStr = m.odds.draw != null ? ` | Empate: ${m.odds.draw}` : ''
-      return `${i + 1}. ${m.homeTeam} vs ${m.awayTeam} (${m.league}) — ${hora}h
-   Odds: Casa ${m.odds.home}${drawStr} | Fora ${m.odds.away}`
+      return `${i + 1}. ${m.homeTeam} vs ${m.awayTeam} (${m.league}) — ${hora}h\n   Odds: Casa ${m.odds.home}${drawStr} | Fora ${m.odds.away}`
     })
     .join('\n')
 }
