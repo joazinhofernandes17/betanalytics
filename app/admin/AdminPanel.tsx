@@ -8,7 +8,7 @@ import { ResultBadge } from '@/components/ResultBadge'
 import { StatsGrid } from '@/components/StatsGrid'
 import { toast } from 'sonner'
 import { formatOdds } from '@/lib/utils'
-import { Zap, Users, Target, BarChart3, RefreshCw } from 'lucide-react'
+import { Zap, Users, Target, BarChart3, RefreshCw, Trash2 } from 'lucide-react'
 import type { DailyPick, PickResult } from '@/types'
 
 interface AdminPanelProps {
@@ -24,7 +24,24 @@ interface AdminPanelProps {
 export function AdminPanel({ todayPicks: initialPicks, stats }: AdminPanelProps) {
   const [picks, setPicks] = useState(initialPicks)
   const [generating, setGenerating] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  async function handleResetToday() {
+    if (!confirm('Apagar todos os picks de hoje? Esta ação não pode ser desfeita.')) return
+    setResetting(true)
+    try {
+      const res = await fetch('/api/admin/reset-today', { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setPicks([])
+      toast.success(`${data.deleted} pick(s) apagado(s). Podes gerar novos picks agora.`)
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao apagar picks')
+    } finally {
+      setResetting(false)
+    }
+  }
 
   async function handleGeneratePicks() {
     setGenerating(true)
@@ -106,19 +123,28 @@ export function AdminPanel({ todayPicks: initialPicks, stats }: AdminPanelProps)
           <p className="text-sm text-zinc-400">
             Gera as 3 apostas do dia com análise da Claude AI. Se já existirem picks para hoje, a operação será ignorada.
           </p>
-          <Button onClick={handleGeneratePicks} disabled={generating}>
-            {generating ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                A gerar...
-              </>
-            ) : (
-              <>
-                <Zap className="h-4 w-4 mr-2" />
-                Gerar picks de hoje
-              </>
+          <div className="flex gap-3 flex-wrap">
+            <Button onClick={handleGeneratePicks} disabled={generating || resetting}>
+              {generating ? (
+                <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />A gerar...</>
+              ) : (
+                <><Zap className="h-4 w-4 mr-2" />Gerar picks de hoje</>
+              )}
+            </Button>
+            {picks.length > 0 && (
+              <Button
+                variant="destructive"
+                onClick={handleResetToday}
+                disabled={resetting || generating}
+              >
+                {resetting ? (
+                  <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />A apagar...</>
+                ) : (
+                  <><Trash2 className="h-4 w-4 mr-2" />Resetar picks de hoje</>
+                )}
+              </Button>
             )}
-          </Button>
+          </div>
         </CardContent>
       </Card>
 
